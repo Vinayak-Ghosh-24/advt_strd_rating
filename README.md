@@ -1,5 +1,5 @@
 # Clone the Repo and run the code
-- no need to virtual env or pip install
+- No need for virtual environment or pip install
   
 # To run the code:
 `python main.py`
