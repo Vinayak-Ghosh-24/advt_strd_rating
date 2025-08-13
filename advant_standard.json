@@ -1,0 +1,74 @@
+{
+  "version": "1.0",
+  "name": "advant_standard_for_existing_building",
+  "eligibility_criteria": {
+    "building_type": ["Institutional", "Commercial"],
+    "operational_years": { "$gte": 1 },
+    "floor_area_m2": { "$gt": 5000 }
+  },
+  "scoring_info": {
+    "certification_levels": [
+      { "name": "Certified", "min_points": 50, "max_points": 59 },
+      { "name": "Silver", "min_points": 60, "max_points": 69 },
+      { "name": "Gold", "min_points": 70, "max_points": 79 },
+      { "name": "Platinum", "min_points": 80, "max_points": 100 }
+    ],
+    "max_points": 100
+  },
+  "categories": [
+    {
+      "id": "SF",
+      "name": "Site & Facility Management",
+      "max_points": 24,
+      "credits": [
+        {
+          "id": "SF1",
+          "name": "Enhanced Waste Management",
+          "max_points": 3,
+          "calculation": {
+            "type": "conditional_sum",
+            "conditions": [
+              { "param": "param1", "name": "dry_waste_reduction_percent", "threshold": 20, "points": 1 },
+              { "param": "param2", "name": "dry_waste_recycled_percent", "threshold": 100, "points": 1 },
+              { "param": "param3", "name": "wet_waste_composted_percent", "threshold": 100, "points": 1 }
+            ]
+          }
+        },
+        {
+          "id": "SF2",
+          "name": "Sustainable Retrofitting",
+          "max_points": 2,
+          "calculation": {
+            "type": "either_or",
+            "options": [
+              { "param": "param4", "name": "eco_labelled_product_cost_percent", "threshold": 10, "points": 1 },
+              { "param": "param5", "name": "certified_green_products_count", "threshold": 5, "points": 1 },
+              { "param": "param6", "name": "sustainable_procurement_policy", "value": true, "points": 1 }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "WC",
+      "name": "Water Conservation",
+      "max_points": 20,
+      "credits": [
+        {
+          "id": "WC1",
+          "name": "Enhanced Water Efficiency",
+          "max_points": 3,
+          "calculation": {
+            "type": "range_based",
+            "param": "param7",
+            "name": "potable_water_savings_percent",
+            "ranges": [
+              { "min": 30, "max": 40, "points": 2 },
+              { "min": 40, "max": null, "points": 3 }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
