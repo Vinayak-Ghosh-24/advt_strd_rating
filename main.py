@@ -129,24 +129,64 @@ def main():
                     else:
                         unmet_criteria.append(entry)
             elif credit["id"] == "SF2" and calc.get("type") == "either_or":
-                for opt in calc["options"]:
-                    val = building_data.get(opt["param"])
-                    met = False
-                    if "threshold" in opt:
-                        met = val is not None and val >= opt["threshold"]
-                    elif "value" in opt:
-                        met = val == opt["value"]
-                    entry = {
-                        "credit_id": credit["id"],
-                        "param": opt["param"],
-                        "param_name": opt["name"],
-                        "points": opt["points"],
-                        "met": met
-                    }
-                    if met:
-                        met_criteria.append(entry)
+                for opt in calc.get("options", []):
+                    group_points = opt.get("points", 1)
+                    group_label = opt.get("group", "")
+                    conditions = opt.get("conditions", [])
+
+                    # Determine if any condition in the group is met
+                    group_met = False
+                    satisfied_condition = None
+                    for condition in conditions:
+                        val = building_data.get(condition["param"])
+                        if "threshold" in condition:
+                            if val is not None and val >= condition["threshold"]:
+                                group_met = True
+                                satisfied_condition = condition
+                                break
+                        elif "value" in condition:
+                            if val == condition["value"]:
+                                group_met = True
+                                satisfied_condition = condition
+                                break
+
+                    if group_met:
+                        # Record a single met entry at the group level
+                        met_criteria.append({
+                            "credit_id": credit["id"],
+                            "credit_name": f"{credit['name']} - {group_label}",
+                            "points": group_points,
+                            "max_points": group_points
+                        })
                     else:
-                        unmet_criteria.append(entry)
+                        # If no condition met, record a single unmet entry describing the either/or requirement
+                        if len(conditions) > 1:
+                            parts = []
+                            for c in conditions:
+                                cname = c.get("name", c["param"])
+                                if "threshold" in c:
+                                    parts.append(f"{c['param']} ({cname}) >= {c['threshold']}")
+                                elif "value" in c:
+                                    parts.append(f"{c['param']} ({cname}) == {json.dumps(c['value'])}")
+                                else:
+                                    parts.append(f"{c['param']} ({cname})")
+                            requirement_text = f"Meet at least one: " + "; ".join(parts) + f" for {group_points} point(s)"
+                            unmet_criteria.append({
+                                "credit_id": credit["id"],
+                                "credit_name": f"{credit['name']} - {group_label}",
+                                "requirement": requirement_text,
+                                "max_points": group_points
+                            })
+                        elif len(conditions) == 1:
+                            # Single-condition group: show unmet at the param level
+                            c = conditions[0]
+                            unmet_criteria.append({
+                                "credit_id": credit["id"],
+                                "param": c["param"],
+                                "param_name": c.get("name", c["param"]),
+                                "points": group_points,
+                                "met": False
+                            })
             elif credit["id"] == "WC1" and calc.get("type") == "range_based":
                 val = building_data.get(calc["param"])
                 param_name = calc.get("name", calc["param"])

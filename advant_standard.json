@@ -41,9 +41,21 @@
           "calculation": {
             "type": "either_or",
             "options": [
-              { "param": "param4", "name": "eco_labelled_product_cost_percent", "threshold": 10, "points": 1 },
-              { "param": "param5", "name": "certified_green_products_count", "threshold": 5, "points": 1 },
-              { "param": "param6", "name": "sustainable_procurement_policy", "value": true, "points": 1 }
+              {
+                "group": "materials",
+                "points": 1,
+                "conditions": [
+                  { "param": "param4", "name": "eco_labelled_product_cost_percent", "threshold": 10 },
+                  { "param": "param5", "name": "certified_green_products_count", "threshold": 5 }
+                ]
+              },
+              {
+                "group": "policy",
+                "points": 1,
+                "conditions": [
+                  { "param": "param6", "name": "sustainable_procurement_policy", "value": true }
+                ]
+              }
             ]
           }
         }

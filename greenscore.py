@@ -39,13 +39,29 @@ class GreenScoreCalculator:
             return min(total, max_points)
 
         elif calc_type == "either_or":
-            for opt in credit["calculation"]["options"]:
-                val = safe_num(building_data.get(opt["param"]))
-                if "threshold" in opt and val >= opt["threshold"]:
-                    return opt["points"]
-                if "value" in opt and building_data.get(opt["param"]) == opt["value"]:
-                    return opt["points"]
-            return 0
+            points = 0
+            
+            for option in credit["calculation"]["options"]:
+                group_points = 0
+                group_max = option.get("points", 1)  # Default to 1 point per group if not specified
+                
+                # Check all conditions in this group
+                for condition in option.get("conditions", []):
+                    val = building_data.get(condition["param"])
+                    
+                    # Check threshold condition
+                    if "threshold" in condition and val is not None and val >= condition["threshold"]:
+                        group_points = group_max
+                        break  # Only need one condition in the group to be true
+                        
+                    # Check value condition
+                    if "value" in condition and building_data.get(condition["param"]) == condition["value"]:
+                        group_points = group_max
+                        break  # Only need one condition in the group to be true
+                
+                points += group_points
+                
+            return min(points, max_points)
 
         elif calc_type == "range_based":
             val = safe_num(building_data.get(credit["calculation"]["param"]))
