@@ -23,6 +23,82 @@ def ask_yes_no(prompt, optional=False):
         else:
             print("❌ Please type yes or no, or press Enter to skip.")
 
+def extract_param_metadata(standard):
+    """Extract all parameter metadata (label, description, input_type, units) from JSON."""
+    params = {}
+    for category in standard.get("categories", []):
+        for credit in category.get("credits", []):
+            calc = credit.get("calculation", {})
+            ctype = calc.get("type")
+            if ctype == "conditional_sum":
+                for cond in calc.get("conditions", []):
+                    p = cond.get("param")
+                    if p:
+                        params[p] = {
+                            "label": cond.get("label", cond.get("name", p)),
+                            "description": cond.get("description"),
+                            "input_type": cond.get("input_type", "number"),
+                            "units": cond.get("units")
+                        }
+            elif ctype == "either_or":
+                for opt in calc.get("options", []):
+                    for cond in opt.get("conditions", []):
+                        p = cond.get("param")
+                        if p:
+                            params[p] = {
+                                "label": cond.get("label", cond.get("name", p)),
+                                "description": cond.get("description"),
+                                "input_type": cond.get("input_type", "number"),
+                                "units": cond.get("units")
+                            }
+            elif ctype == "composite_sum":
+                for part in calc.get("parts", []):
+                    p = part.get("param")
+                    if p:
+                        params[p] = {
+                            "label": part.get("label", part.get("name", p)),
+                            "description": part.get("description"),
+                            "input_type": part.get("input_type", "number"),
+                            "units": part.get("units")
+                        }
+            elif ctype == "single_condition":
+                cond = calc.get("condition", {})
+                p = cond.get("param")
+                if p:
+                    params[p] = {
+                        "label": cond.get("label", cond.get("name", p)),
+                        "description": cond.get("description"),
+                        "input_type": cond.get("input_type", "number"),
+                        "units": cond.get("units")
+                    }
+                add = calc.get("additional_requirements", {})
+                p2 = add.get("param")
+                if p2:
+                    params[p2] = {
+                        "label": add.get("label", add.get("name", p2)),
+                        "description": add.get("description"),
+                        "input_type": add.get("input_type", "number"),
+                        "units": add.get("units")
+                    }
+            elif ctype == "range_based":
+                p = calc.get("param")
+                if p:
+                    params[p] = {
+                        "label": calc.get("label", calc.get("name", p)),
+                        "description": calc.get("description"),
+                        "input_type": calc.get("input_type", "number"),
+                        "units": calc.get("units")
+                    }
+    return params
+
+def build_question(param_metadata):
+    """Build a question string from parameter metadata."""
+    label = param_metadata["label"]
+    description = param_metadata.get("description")
+    if description:
+        return f"{label} - {description}"
+    return label
+
 def check_eligibility_full(calc, data):
     """Returns eligibility status and all reasons for failure"""
     failed_reasons = []
@@ -37,11 +113,6 @@ def check_eligibility_full(calc, data):
     if data["operational_years"] < min_years:
         failed_reasons.append(f"Building must be operational for at least {min_years} years")
 
-    # Check floor area
-    min_area = ec["floor_area_m2"]["$gt"]
-    if data["floor_area_m2"] <= min_area:
-        failed_reasons.append(f"Building floor area must be greater than {min_area} m²")
-
     return (len(failed_reasons) == 0, failed_reasons)
 
 def main():
@@ -50,6 +121,7 @@ def main():
         standard = json.load(f)
 
     calc = GreenScoreCalculator(standard)
+    param_metadata = extract_param_metadata(standard)
 
     print("=== Advant Green Building Evaluation ===")
 
@@ -66,12 +138,10 @@ def main():
             print("❌ Please enter a valid choice (1 or 2)")
 
     operational_years = ask_numeric("How many years has the building been operational?")
-    floor_area_m2 = ask_numeric("Enter floor area in square meters")
 
     eligibility_data = {
         "building_type": building_type,
-        "operational_years": operational_years,
-        "floor_area_m2": floor_area_m2
+        "operational_years": operational_years
     }
 
     # Full eligibility check
@@ -81,27 +151,24 @@ def main():
         print(json.dumps({"eligible": False, "reasons": failed_reasons}, indent=2))
         return
 
-    # Ask non-eligibility params (skippable)
-    # Use param1, param2, param3 for SF1
-    param1 = ask_numeric("Dry waste reduction percentage compared to last year", optional=True)
-    param2 = ask_numeric("Dry waste recycled percentage", optional=True)
-    param3 = ask_numeric("Wet waste composted percentage", optional=True)
-
-    param4 = ask_numeric("Eco-labelled product cost percentage during retrofitting", optional=True)
-    param5 = ask_numeric("Number of certified green products used", optional=True)
-    param6 = ask_yes_no("Does the building have a sustainable procurement policy?", optional=True)
-
-    param7 = ask_numeric("Potable water savings percentage over baseline", optional=True)
+    # Ask all parameters dynamically from JSON metadata
+    params = {}
+    
+    # Collect all parameters in order
+    for param_key in ["param1", "param2", "param3", "param4", "param5", "param6", 
+                      "param7", "param8", "param9", "param10", "param11", "param12", "param13"]:
+        if param_key in param_metadata:
+            meta = param_metadata[param_key]
+            question = build_question(meta)
+            
+            if meta["input_type"] == "boolean":
+                params[param_key] = ask_yes_no(question, optional=True)
+            else:  # number
+                params[param_key] = ask_numeric(question, optional=True)
 
     building_data = {
         **eligibility_data,
-        "param1": param1,
-        "param2": param2,
-        "param3": param3,
-        "param4": param4,
-        "param5": param5,
-        "param6": param6,
-        "param7": param7
+        **params
     }
 
     # Evaluate
@@ -110,121 +177,186 @@ def main():
     # Collect met and unmet criteria per param for all credits
     met_criteria = []
     unmet_criteria = []
-    for category in standard["categories"]:
-        for credit in category["credits"]:
-            calc = credit.get("calculation", {})
-            if credit["id"] == "SF1" and calc.get("type") == "conditional_sum":
-                for cond in calc["conditions"]:
-                    val = building_data.get(cond["param"])
-                    met = val is not None and val >= cond["threshold"]
-                    entry = {
-                        "credit_id": credit["id"],
-                        "param": cond["param"],
-                        "param_name": cond["name"],
-                        "points": cond["points"],
-                        "met": met
-                    }
-                    if met:
-                        met_criteria.append(entry)
-                    else:
-                        unmet_criteria.append(entry)
-            elif credit["id"] == "SF2" and calc.get("type") == "either_or":
-                for opt in calc.get("options", []):
-                    group_points = opt.get("points", 1)
-                    group_label = opt.get("group", "")
-                    conditions = opt.get("conditions", [])
-
-                    # Determine if any condition in the group is met
-                    group_met = False
-                    satisfied_condition = None
-                    for condition in conditions:
-                        val = building_data.get(condition["param"])
-                        if "threshold" in condition:
-                            if val is not None and val >= condition["threshold"]:
-                                group_met = True
-                                satisfied_condition = condition
-                                break
-                        elif "value" in condition:
-                            if val == condition["value"]:
-                                group_met = True
-                                satisfied_condition = condition
-                                break
-
-                    if group_met:
-                        # Record a single met entry at the group level
-                        met_criteria.append({
-                            "credit_id": credit["id"],
-                            "credit_name": f"{credit['name']} - {group_label}",
-                            "points": group_points,
-                            "max_points": group_points
-                        })
-                    else:
-                        # If no condition met, record a single unmet entry describing the either/or requirement
-                        if len(conditions) > 1:
-                            parts = []
-                            for c in conditions:
-                                cname = c.get("name", c["param"])
-                                if "threshold" in c:
-                                    parts.append(f"{c['param']} ({cname}) >= {c['threshold']}")
-                                elif "value" in c:
-                                    parts.append(f"{c['param']} ({cname}) == {json.dumps(c['value'])}")
-                                else:
-                                    parts.append(f"{c['param']} ({cname})")
-                            requirement_text = f"Meet at least one: " + "; ".join(parts) + f" for {group_points} point(s)"
-                            unmet_criteria.append({
-                                "credit_id": credit["id"],
-                                "credit_name": f"{credit['name']} - {group_label}",
-                                "requirement": requirement_text,
-                                "max_points": group_points
-                            })
-                        elif len(conditions) == 1:
-                            # Single-condition group: show unmet at the param level
-                            c = conditions[0]
-                            unmet_criteria.append({
-                                "credit_id": credit["id"],
-                                "param": c["param"],
-                                "param_name": c.get("name", c["param"]),
-                                "points": group_points,
-                                "met": False
-                            })
-            elif credit["id"] == "WC1" and calc.get("type") == "range_based":
-                val = building_data.get(calc["param"])
-                param_name = calc.get("name", calc["param"])
-                met = False
-                points = 0
-                for r in calc["ranges"]:
-                    if r["min"] is not None and val is not None and val >= r["min"]:
-                        if r["max"] is None or val <= r["max"]:
-                            met = True
-                            points = r["points"]
-                            break
+    
+    def analyze_credit(credit, building_data, result):
+        """Analyze a single credit and return met/unmet entries."""
+        calc = credit.get("calculation", {})
+        calc_type = calc.get("type")
+        credit_score = result.get("credit_scores", {}).get(credit["id"], 0)
+        
+        if calc_type == "conditional_sum":
+            for cond in calc["conditions"]:
+                val = building_data.get(cond["param"])
+                met = val is not None and val >= cond["threshold"]
                 entry = {
                     "credit_id": credit["id"],
-                    "param": calc["param"],
-                    "param_name": param_name,
-                    "points": points,
-                    "met": met
+                    "param": cond["param"],
+                    "param_name": cond.get("label", cond.get("name", cond["param"])),
+                    "points": cond["points"],
+                    "met": met,
+                    "requirement": f">= {cond['threshold']} {cond.get('units', '')}".strip()
                 }
                 if met:
                     met_criteria.append(entry)
                 else:
                     unmet_criteria.append(entry)
-            else:
-                score = result.get("credit_scores", {}).get(credit["id"], 0)
-                if score and score > 0:
+                    
+        elif calc_type == "either_or":
+            for opt in calc.get("options", []):
+                group_points = opt.get("points", 1)
+                group_label = opt.get("group", "")
+                conditions = opt.get("conditions", [])
+                
+                # Check if any condition in the group is met
+                group_met = False
+                for condition in conditions:
+                    val = building_data.get(condition["param"])
+                    if "threshold" in condition:
+                        if val is not None and val >= condition["threshold"]:
+                            group_met = True
+                            break
+                    elif "value" in condition:
+                        if val == condition["value"]:
+                            group_met = True
+                            break
+                
+                if group_met:
                     met_criteria.append({
                         "credit_id": credit["id"],
-                        "credit_name": credit["name"],
-                        "points": score,
-                        "max_points": credit["max_points"]
+                        "credit_name": f"{credit['name']} - {group_label}",
+                        "points": group_points,
+                        "max_points": group_points
                     })
                 else:
+                    # Build readable requirement text
+                    parts = []
+                    for c in conditions:
+                        label = c.get("label", c.get("name", c["param"]))
+                        if "threshold" in c:
+                            parts.append(f"{label} >= {c['threshold']} {c.get('units', '')}".strip())
+                        elif "value" in c:
+                            parts.append(f"{label} = {c['value']}")
+                    
+                    requirement_text = f"Meet at least one: {' OR '.join(parts)}"
                     unmet_criteria.append({
                         "credit_id": credit["id"],
-                        "credit_name": credit["name"],
-                        "max_points": credit["max_points"],
-                        "requirement": credit.get("calculation", {})
+                        "credit_name": f"{credit['name']} - {group_label}",
+                        "requirement": requirement_text,
+                        "max_points": group_points
                     })
+                    
+        elif calc_type == "composite_sum":
+            total_earned = 0
+            for part in calc.get("parts", []):
+                val = building_data.get(part["param"])
+                part_points = 0
+                part_met = False
+                
+                for r in part["ranges"]:
+                    if val is not None and val >= r.get("min", 0):
+                        if r.get("max") is None or val <= r["max"]:
+                            part_points = r["points"]
+                            part_met = True
+                            break
+                
+                total_earned += part_points
+                label = part.get("label", part.get("name", part["param"]))
+                
+                if part_met:
+                    met_criteria.append({
+                        "credit_id": credit["id"],
+                        "param": part["param"],
+                        "param_name": label,
+                        "points": part_points,
+                        "met": True
+                    })
+                else:
+                    # Show range requirements
+                    ranges_text = []
+                    for r in part["ranges"]:
+                        min_val = r.get("min", 0)
+                        max_val = r.get("max", "∞")
+                        ranges_text.append(f"{min_val}-{max_val}: {r['points']} pts")
+                    
+                    unmet_criteria.append({
+                        "credit_id": credit["id"],
+                        "param": part["param"],
+                        "param_name": label,
+                        "points": 0,
+                        "met": False,
+                        "requirement": f"Ranges: {', '.join(ranges_text)}"
+                    })
+                    
+        elif calc_type == "single_condition":
+            cond = calc.get("condition", {})
+            add_req = calc.get("additional_requirements", {})
+            
+            val = building_data.get(cond["param"])
+            add_val = building_data.get(add_req.get("param")) if add_req.get("param") else None
+            
+            main_met = val is not None and val >= cond["threshold"]
+            add_met = add_val is None or add_val >= add_req.get("min_required", 0)
+            
+            if main_met and add_met:
+                met_criteria.append({
+                    "credit_id": credit["id"],
+                    "credit_name": credit["name"],
+                    "points": cond["points"],
+                    "max_points": credit["max_points"]
+                })
+            else:
+                requirements = []
+                main_label = cond.get("label", cond.get("name", cond["param"]))
+                requirements.append(f"{main_label} >= {cond['threshold']} {cond.get('units', '')}".strip())
+                
+                if add_req.get("param"):
+                    add_label = add_req.get("label", add_req.get("name", add_req["param"]))
+                    requirements.append(f"{add_label} >= {add_req['min_required']} {add_req.get('units', '')}".strip())
+                
+                unmet_criteria.append({
+                    "credit_id": credit["id"],
+                    "credit_name": credit["name"],
+                    "requirement": f"Must meet ALL: {' AND '.join(requirements)}",
+                    "max_points": credit["max_points"]
+                })
+                
+        elif calc_type == "range_based":
+            val = building_data.get(calc["param"])
+            param_label = calc.get("label", calc.get("name", calc["param"]))
+            met = False
+            points = 0
+            
+            for r in calc["ranges"]:
+                if val is not None and val >= r.get("min", 0):
+                    if r.get("max") is None or val <= r["max"]:
+                        met = True
+                        points = r["points"]
+                        break
+            
+            entry = {
+                "credit_id": credit["id"],
+                "param": calc["param"],
+                "param_name": param_label,
+                "points": points,
+                "met": met
+            }
+            
+            if met:
+                met_criteria.append(entry)
+            else:
+                # Show range requirements
+                ranges_text = []
+                for r in calc["ranges"]:
+                    min_val = r.get("min", 0)
+                    max_val = r.get("max", "∞")
+                    ranges_text.append(f"{min_val}-{max_val}: {r['points']} pts")
+                
+                entry["requirement"] = f"Ranges: {', '.join(ranges_text)}"
+                unmet_criteria.append(entry)
+    
+    for category in standard["categories"]:
+        for credit in category["credits"]:
+            analyze_credit(credit, building_data, result)
 
     print("\n=== Evaluation Result ===")
     print(f"Eligible: {result['eligible']}")
@@ -235,9 +367,10 @@ def main():
     if unmet_criteria:
         for c in unmet_criteria:
             if c.get("param"):
-                print(f" - {c['credit_id']} {c['param']} ({c['param_name']}): Not met, Points: {c['points']}")
+                req_text = f" ({c.get('requirement', '')})" if c.get('requirement') else ""
+                print(f" - {c['credit_id']} {c['param_name']}: Not met{req_text}, Max Points: {c.get('points', 0)}")
             else:
-                print(f" - {c['credit_id']} ({c.get('credit_name','')}):\n    Requirement: {json.dumps(c.get('requirement',''))}\n    Max Points: {c.get('max_points','')}")
+                print(f" - {c['credit_id']} ({c.get('credit_name', '')}):\n    {c.get('requirement', 'No requirement info')}\n    Max Points: {c.get('max_points', 0)}")
     else:
         print("✅ All criteria met")
 

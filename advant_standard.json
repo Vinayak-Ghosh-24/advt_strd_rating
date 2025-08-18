@@ -2,16 +2,36 @@
   "version": "1.0",
   "name": "advant_standard_for_existing_building",
   "eligibility_criteria": {
-    "building_type": ["Institutional", "Commercial"],
-    "operational_years": { "$gte": 1 },
-    "floor_area_m2": { "$gt": 5000 }
+    "building_type": [
+      "Institutional",
+      "Commercial"
+    ],
+    "operational_years": {
+      "$gte": 1
+    }
   },
   "scoring_info": {
     "certification_levels": [
-      { "name": "Certified", "min_points": 50, "max_points": 59 },
-      { "name": "Silver", "min_points": 60, "max_points": 69 },
-      { "name": "Gold", "min_points": 70, "max_points": 79 },
-      { "name": "Platinum", "min_points": 80, "max_points": 100 }
+      {
+        "name": "Certified",
+        "min_points": 5,
+        "max_points": 59
+      },
+      {
+        "name": "Silver",
+        "min_points": 60,
+        "max_points": 69
+      },
+      {
+        "name": "Gold",
+        "min_points": 70,
+        "max_points": 79
+      },
+      {
+        "name": "Platinum",
+        "min_points": 80,
+        "max_points": 100
+      }
     ],
     "max_points": 100
   },
@@ -28,9 +48,34 @@
           "calculation": {
             "type": "conditional_sum",
             "conditions": [
-              { "param": "param1", "name": "dry_waste_reduction_percent", "threshold": 20, "points": 1 },
-              { "param": "param2", "name": "dry_waste_recycled_percent", "threshold": 100, "points": 1 },
-              { "param": "param3", "name": "wet_waste_composted_percent", "threshold": 100, "points": 1 }
+              {
+                "param": "param1",
+                "name": "dry_waste_reduction_percent",
+                "label": "Dry waste reduction percentage compared to last year",
+                "input_type": "number",
+                "units": "percent",
+                "threshold": 20,
+                "points": 1
+              },
+              {
+                "param": "param2",
+                "name": "dry_waste_recycled_percent",
+                "label": "Dry waste recycled percentage",
+                "input_type": "number",
+                "units": "percent",
+                "threshold": 100,
+                "points": 1
+              },
+              {
+                "param": "param3",
+                "name": "wet_waste_composted_percent",
+                "label": "Wet waste composted percentage",
+                "description": "You are being asked about the percentage amount of wet waste that was being composed in the facility last year",
+                "input_type": "number",
+                "units": "percent",
+                "threshold": 100,
+                "points": 1
+              }
             ]
           }
         },
@@ -45,15 +90,149 @@
                 "group": "materials",
                 "points": 1,
                 "conditions": [
-                  { "param": "param4", "name": "eco_labelled_product_cost_percent", "threshold": 10 },
-                  { "param": "param5", "name": "certified_green_products_count", "threshold": 5 }
+                  {
+                    "param": "param4",
+                    "name": "eco_labelled_product_cost_percent",
+                    "label": "Eco-labelled product cost percentage during retrofitting",
+                    "input_type": "number",
+                    "units": "percent",
+                    "threshold": 10
+                  },
+                  {
+                    "param": "param5",
+                    "name": "certified_green_products_count",
+                    "label": "Number of certified green products used",
+                    "input_type": "number",
+                    "units": "count",
+                    "threshold": 5
+                  }
                 ]
               },
               {
                 "group": "policy",
                 "points": 1,
                 "conditions": [
-                  { "param": "param6", "name": "sustainable_procurement_policy", "value": true }
+                  {
+                    "param": "param6",
+                    "name": "sustainable_procurement_policy",
+                    "label": "Does the building have a sustainable procurement policy?",
+                    "input_type": "boolean",
+                    "value": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "SF3",
+          "name": "Urban Heat Island Mitigation",
+          "max_points": 4,
+          "calculation": {
+            "type": "composite_sum",
+            "parts": [
+              {
+                "sub_id": "roof",
+                "param": "param7",
+                "name": "roof_uhi_coverage_percent",
+                "label": "Roof area with high SRI/green/reflective/solar coverage (% of total roof area)",
+                "input_type": "number",
+                "units": "percent",
+                "ranges": [
+                  {
+                    "min": 60,
+                    "max": 100,
+                    "points": 1
+                  },
+                  {
+                    "min": 100,
+                    "max": null,
+                    "points": 2
+                  }
+                ]
+              },
+              {
+                "sub_id": "non_roof",
+                "param": "param8",
+                "name": "non_roof_uhi_coverage_percent",
+                "label": "Non-roof hardscape with high SRI/green/reflective/shaded coverage (% of total non-roof hardscape)",
+                "input_type": "number",
+                "units": "percent",
+                "ranges": [
+                  {
+                    "min": 60,
+                    "max": 80,
+                    "points": 1
+                  },
+                  {
+                    "min": 80,
+                    "max": null,
+                    "points": 2
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "SF4",
+          "name": "Eco-friendly Landscaping Practices",
+          "max_points": 2,
+          "calculation": {
+            "type": "single_condition",
+            "condition": {
+              "param": "param9",
+              "name": "organic_fertilizer_coverage_percent",
+              "label": "Landscape maintained with organic fertilizers/soil conditioners (% of landscaped area)",
+              "input_type": "number",
+              "units": "percent",
+              "threshold": 100,
+              "points": 2
+            },
+            "additional_requirements": {
+              "param": "param10",
+              "name": "landscape_area_percent",
+              "label": "Landscaped area as % of total site area",
+              "input_type": "number",
+              "units": "percent",
+              "min_required": 15
+            }
+          }
+        },
+        {
+          "id": "SF5",
+          "name": "Eco-friendly Commuting Practices",
+          "max_points": 2,
+          "calculation": {
+            "type": "either_or",
+            "options": [
+              {
+                "group": "public_transport",
+                "points": 1,
+                "conditions": [
+                  {
+                    "param": "param11",
+                    "name": "public_transport_compliant",
+                    "label": "Is the site within 800 m of public transport and serves >=60% occupants?",
+                    "input_type": "boolean",
+                    "value": true,
+                    "description": "Within 800 m walking distance to rail/bus/metro AND provides network access for at least 60% occupants"
+                  }
+                ]
+              },
+              {
+                "group": "shuttle_service",
+                "points": 1,
+                "conditions": [
+                  {
+                    "param": "param12",
+                    "name": "shuttle_service_coverage_percent",
+                    "label": "Shuttle service coverage (% of total occupants)",
+                    "input_type": "number",
+                    "units": "percent",
+                    "threshold": 60,
+                    "description": "Dedicated shuttle service caters to at least 60% of building occupants to nearest drop zone"
+                  }
                 ]
               }
             ]
@@ -72,11 +251,22 @@
           "max_points": 3,
           "calculation": {
             "type": "range_based",
-            "param": "param7",
+            "param": "param13",
             "name": "potable_water_savings_percent",
+            "label": "Potable water savings percentage over baseline",
+            "input_type": "number",
+            "units": "percent",
             "ranges": [
-              { "min": 30, "max": 40, "points": 2 },
-              { "min": 40, "max": null, "points": 3 }
+              {
+                "min": 30,
+                "max": 40,
+                "points": 2
+              },
+              {
+                "min": 40,
+                "max": null,
+                "points": 3
+              }
             ]
           }
         }

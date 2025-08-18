@@ -17,10 +17,6 @@ class GreenScoreCalculator:
         if building_data.get("operational_years", 0) < criteria["operational_years"]["$gte"]:
             return False, "Building has not been operational long enough"
         
-        # Check floor area
-        if building_data.get("floor_area_m2", 0) <= criteria["floor_area_m2"]["$gt"]:
-            return False, "Building floor area too small"
-        
         return True, "Eligible"
 
     def calculate_credit_points(self, credit, building_data):
@@ -71,6 +67,28 @@ class GreenScoreCalculator:
                 if r["max"] is not None and val > r["max"]:
                     continue
                 return r["points"]
+            return 0
+        
+        elif calc_type == "composite_sum":
+            score = 0
+            for part in credit["calculation"]["parts"]:
+                val = safe_num(building_data.get(part["param"]))
+                for r in part["ranges"]:
+                    if r["min"] is not None and val < r["min"]:
+                        continue
+                    if r["max"] is not None and val > r["max"]:
+                        continue
+                    score += r["points"]
+                    break
+            return min(score, max_points)
+
+        elif calc_type == "single_condition":
+            cond = credit["calculation"]["condition"]
+            min_req = credit["calculation"].get("additional_requirements", {})
+            val = safe_num(building_data.get(cond["param"]))
+            min_val = safe_num(building_data.get(min_req.get("param")))
+            if val >= cond["threshold"] and min_val >= min_req.get("min_required", 0):
+                return cond["points"]
             return 0
 
         return 0
@@ -126,7 +144,6 @@ if __name__ == "__main__":
     building_data = {
         "building_type": "Commercial",
         "operational_years": 2,
-        "floor_area_m2": 6000,
         "dry_waste_reduction_percent": 25,
         "dry_waste_recycled_percent": 100,
         "wet_waste_composted_percent": 90,
