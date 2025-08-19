@@ -1,4 +1,126 @@
+from dataclasses import dataclass, field
+from typing import Optional, Literal, Dict, Any
 import json
+
+@dataclass
+class GreenScoreInput:
+    """
+    Strongly-typed input for GreenScoreCalculator.
+
+    Use this class to define and validate the data your frontend must collect.
+    Call to_calculator_payload() to transform into the dict expected by the
+    current calculator (using param1..param13 keys).
+    """
+    # Eligibility
+    building_type: Literal["Institutional", "Commercial"] = field(metadata={
+        "label": "Building Type",
+        "description": "Select the building category as per eligibility",
+    })
+    operational_years: int = field(metadata={
+        "label": "Operational Years",
+        "description": "Number of years the building has been operational",
+        "units": "years"
+    })
+
+    # SF1 – Enhanced Waste Management
+    dry_waste_reduction_percent: Optional[float] = field(default=None, metadata={
+        "label": "Dry waste reduction percentage compared to last year",
+        "units": "percent"
+    })
+    dry_waste_recycled_percent: Optional[float] = field(default=None, metadata={
+        "label": "Dry waste recycled percentage",
+        "units": "percent"
+    })
+    wet_waste_composted_percent: Optional[float] = field(default=None, metadata={
+        "label": "Wet waste composted percentage",
+        "description": "Percentage amount of wet waste composted in the facility last year",
+        "units": "percent"
+    })
+
+    # SF2 – Sustainable Retrofitting
+    eco_labelled_product_cost_percent: Optional[float] = field(default=None, metadata={
+        "label": "Eco-labelled product cost percentage during retrofitting",
+        "units": "percent"
+    })
+    certified_green_products_count: Optional[float] = field(default=None, metadata={
+        "label": "Number of certified green products used",
+        "units": "count"
+    })
+    sustainable_procurement_policy: Optional[bool] = field(default=None, metadata={
+        "label": "Does the building have a sustainable procurement policy?"
+    })
+
+    # SF3 – Urban Heat Island Mitigation
+    roof_uhi_coverage_percent: Optional[float] = field(default=None, metadata={
+        "label": "Roof area with high SRI/green/reflective/solar coverage (% of total roof area)",
+        "units": "percent"
+    })
+    non_roof_uhi_coverage_percent: Optional[float] = field(default=None, metadata={
+        "label": "Non-roof hardscape with high SRI/green/reflective/shaded coverage (% of total non-roof hardscape)",
+        "units": "percent"
+    })
+
+    # SF4 – Eco-friendly Landscaping Practices
+    organic_fertilizer_coverage_percent: Optional[float] = field(default=None, metadata={
+        "label": "Landscape maintained with organic fertilizers/soil conditioners (% of landscaped area)",
+        "units": "percent"
+    })
+    landscape_area_percent: Optional[float] = field(default=None, metadata={
+        "label": "Landscaped area as % of total site area",
+        "units": "percent"
+    })
+
+    # SF5 – Eco-friendly Commuting Practices
+    public_transport_compliant: Optional[bool] = field(default=None, metadata={
+        "label": "Is the site within 800 m of public transport and serves >=60% occupants?"
+    })
+    shuttle_service_coverage_percent: Optional[float] = field(default=None, metadata={
+        "label": "Shuttle service coverage (% of total occupants)",
+        "units": "percent"
+    })
+
+    # WC1 – Enhanced Water Efficiency
+    potable_water_savings_percent: Optional[float] = field(default=None, metadata={
+        "label": "Potable water savings percentage over baseline",
+        "units": "percent"
+    })
+
+    def to_calculator_payload(self) -> Dict[str, Any]:
+        """
+        Convert to the dict expected by GreenScoreCalculator where credit inputs
+        are keyed by param1..param13, as defined in advant_standard.json.
+        """
+        return {
+            # Eligibility
+            "building_type": self.building_type,
+            "operational_years": self.operational_years,
+
+            # Param mapping as per advant_standard.json
+            # SF1
+            "param1": self.dry_waste_reduction_percent,
+            "param2": self.dry_waste_recycled_percent,
+            "param3": self.wet_waste_composted_percent,
+
+            # SF2
+            "param4": self.eco_labelled_product_cost_percent,
+            "param5": self.certified_green_products_count,
+            "param6": self.sustainable_procurement_policy,
+
+            # SF3
+            "param7": self.roof_uhi_coverage_percent,
+            "param8": self.non_roof_uhi_coverage_percent,
+
+            # SF4
+            "param9": self.organic_fertilizer_coverage_percent,
+            "param10": self.landscape_area_percent,
+
+            # SF5
+            "param11": self.public_transport_compliant,
+            "param12": self.shuttle_service_coverage_percent,
+
+            # WC1
+            "param13": self.potable_water_savings_percent,
+        }
 
 class GreenScoreCalculator:
     def __init__(self, standard_json):
@@ -141,17 +263,17 @@ if __name__ == "__main__":
 
     calc = GreenScoreCalculator(standard)
 
-    building_data = {
-        "building_type": "Commercial",
-        "operational_years": 2,
-        "dry_waste_reduction_percent": 25,
-        "dry_waste_recycled_percent": 100,
-        "wet_waste_composted_percent": 90,
-        "eco_labelled_product_cost_percent": 15,
-        "certified_green_products_count": 4,
-        "sustainable_procurement_policy": True,
-        "potable_water_savings_percent": 35
-    }
+    building_data = GreenScoreInput(
+        building_type="Commercial",
+        operational_years=2,
+        dry_waste_reduction_percent=25,
+        dry_waste_recycled_percent=100,
+        wet_waste_composted_percent=90,
+        eco_labelled_product_cost_percent=15,
+        certified_green_products_count=4,
+        sustainable_procurement_policy=True,
+        potable_water_savings_percent=35
+    ).to_calculator_payload()
 
     result = calc.evaluate(building_data)
     print(json.dumps(result, indent=2))
