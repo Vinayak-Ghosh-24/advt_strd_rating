@@ -85,10 +85,16 @@ class GreenScoreInput:
         "units": "percent"
     })
 
+    # EE1 – Enhanced Eco-friendly Refrigerants & Fire Suppression Management System
+    gwp_refrigerants_fire_suppression: Optional[float] = field(default=None, metadata={
+        "label": "Average GWP of all refrigerants/substances and fire suppression systems used in the building",
+        "units": "GWP"
+    })
+
     def to_calculator_payload(self) -> Dict[str, Any]:
         """
         Convert to the dict expected by GreenScoreCalculator where credit inputs
-        are keyed by param1..param13, as defined in advant_standard.json.
+        are keyed by param1..param14, as defined in advant_standard.json.
         """
         return {
             # Eligibility
@@ -120,6 +126,9 @@ class GreenScoreInput:
 
             # WC1
             "param13": self.potable_water_savings_percent,
+
+            # EE1
+            "param14": self.gwp_refrigerants_fire_suppression,
         }
 
 class GreenScoreCalculator:
@@ -184,11 +193,15 @@ class GreenScoreCalculator:
         elif calc_type == "range_based":
             val = safe_num(building_data.get(credit["calculation"]["param"]))
             for r in credit["calculation"]["ranges"]:
-                if r["min"] is not None and val < r["min"]:
-                    continue
-                if r["max"] is not None and val > r["max"]:
-                    continue
-                return r["points"]
+                min_val = r.get("min")
+                max_val = r.get("max")
+                
+                # Check if value falls within range
+                min_ok = min_val is None or val >= min_val
+                max_ok = max_val is None or val <= max_val
+                
+                if min_ok and max_ok:
+                    return r["points"]
             return 0
         
         elif calc_type == "composite_sum":
@@ -196,12 +209,16 @@ class GreenScoreCalculator:
             for part in credit["calculation"]["parts"]:
                 val = safe_num(building_data.get(part["param"]))
                 for r in part["ranges"]:
-                    if r["min"] is not None and val < r["min"]:
-                        continue
-                    if r["max"] is not None and val > r["max"]:
-                        continue
-                    score += r["points"]
-                    break
+                    min_val = r.get("min")
+                    max_val = r.get("max")
+                    
+                    # Check if value falls within range
+                    min_ok = min_val is None or val >= min_val
+                    max_ok = max_val is None or val <= max_val
+                    
+                    if min_ok and max_ok:
+                        score += r["points"]
+                        break
             return min(score, max_points)
 
         elif calc_type == "single_condition":
@@ -224,7 +241,7 @@ class GreenScoreCalculator:
             cat_score = 0
             for credit in category["credits"]:
                 points = self.calculate_credit_points(credit, building_data)
-                credit_scores[credit["id"]] = points
+                credit_scores[credit["sub_id"]] = points
                 cat_score += points
             cat_score = min(cat_score, category["max_points"])
             category_scores[category["id"]] = cat_score

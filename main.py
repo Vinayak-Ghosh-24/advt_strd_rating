@@ -154,17 +154,19 @@ def main():
     # Ask all parameters dynamically from JSON metadata
     params = {}
     
-    # Collect all parameters in order
-    for param_key in ["param1", "param2", "param3", "param4", "param5", "param6", 
-                      "param7", "param8", "param9", "param10", "param11", "param12", "param13"]:
-        if param_key in param_metadata:
-            meta = param_metadata[param_key]
-            question = build_question(meta)
-            
-            if meta["input_type"] == "boolean":
-                params[param_key] = ask_yes_no(question, optional=True)
-            else:  # number
-                params[param_key] = ask_numeric(question, optional=True)
+    # Collect all parameters dynamically from JSON metadata
+    # Sort param keys to maintain consistent order (param1, param2, etc.)
+    param_keys = sorted([k for k in param_metadata.keys() if k.startswith('param')], 
+                       key=lambda x: int(x.replace('param', '')))
+    
+    for param_key in param_keys:
+        meta = param_metadata[param_key]
+        question = build_question(meta)
+        
+        if meta["input_type"] == "boolean":
+            params[param_key] = ask_yes_no(question, optional=True)
+        else:  # number
+            params[param_key] = ask_numeric(question, optional=True)
 
     building_data = {
         **eligibility_data,
@@ -182,14 +184,14 @@ def main():
         """Analyze a single credit and return met/unmet entries."""
         calc = credit.get("calculation", {})
         calc_type = calc.get("type")
-        credit_score = result.get("credit_scores", {}).get(credit["id"], 0)
+        credit_score = result.get("credit_scores", {}).get(credit["sub_id"], 0)
         
         if calc_type == "conditional_sum":
             for cond in calc["conditions"]:
                 val = building_data.get(cond["param"])
                 met = val is not None and val >= cond["threshold"]
                 entry = {
-                    "credit_id": credit["id"],
+                    "credit_id": credit["sub_id"],
                     "param": cond["param"],
                     "param_name": cond.get("label", cond.get("name", cond["param"])),
                     "points": cond["points"],
@@ -222,7 +224,7 @@ def main():
                 
                 if group_met:
                     met_criteria.append({
-                        "credit_id": credit["id"],
+                        "credit_id": credit["sub_id"],
                         "credit_name": f"{credit['name']} - {group_label}",
                         "points": group_points,
                         "max_points": group_points
@@ -239,7 +241,7 @@ def main():
                     
                     requirement_text = f"Meet at least one: {' OR '.join(parts)}"
                     unmet_criteria.append({
-                        "credit_id": credit["id"],
+                        "credit_id": credit["sub_id"],
                         "credit_name": f"{credit['name']} - {group_label}",
                         "requirement": requirement_text,
                         "max_points": group_points
@@ -253,18 +255,24 @@ def main():
                 part_met = False
                 
                 for r in part["ranges"]:
-                    if val is not None and val >= r.get("min", 0):
-                        if r.get("max") is None or val <= r["max"]:
-                            part_points = r["points"]
-                            part_met = True
-                            break
+                    min_val = r.get("min")
+                    max_val = r.get("max")
+                    
+                    # Check if value falls within range
+                    min_ok = min_val is None or (val is not None and val >= min_val)
+                    max_ok = max_val is None or (val is not None and val <= max_val)
+                    
+                    if min_ok and max_ok:
+                        part_points = r["points"]
+                        part_met = True
+                        break
                 
                 total_earned += part_points
                 label = part.get("label", part.get("name", part["param"]))
                 
                 if part_met:
                     met_criteria.append({
-                        "credit_id": credit["id"],
+                        "credit_id": credit["sub_id"],
                         "param": part["param"],
                         "param_name": label,
                         "points": part_points,
@@ -279,7 +287,7 @@ def main():
                         ranges_text.append(f"{min_val}-{max_val}: {r['points']} pts")
                     
                     unmet_criteria.append({
-                        "credit_id": credit["id"],
+                        "credit_id": credit["sub_id"],
                         "param": part["param"],
                         "param_name": label,
                         "points": 0,
@@ -299,7 +307,7 @@ def main():
             
             if main_met and add_met:
                 met_criteria.append({
-                    "credit_id": credit["id"],
+                    "credit_id": credit["sub_id"],
                     "credit_name": credit["name"],
                     "points": cond["points"],
                     "max_points": credit["max_points"]
@@ -314,7 +322,7 @@ def main():
                     requirements.append(f"{add_label} >= {add_req['min_required']} {add_req.get('units', '')}".strip())
                 
                 unmet_criteria.append({
-                    "credit_id": credit["id"],
+                    "credit_id": credit["sub_id"],
                     "credit_name": credit["name"],
                     "requirement": f"Must meet ALL: {' AND '.join(requirements)}",
                     "max_points": credit["max_points"]
@@ -327,14 +335,20 @@ def main():
             points = 0
             
             for r in calc["ranges"]:
-                if val is not None and val >= r.get("min", 0):
-                    if r.get("max") is None or val <= r["max"]:
-                        met = True
-                        points = r["points"]
-                        break
+                min_val = r.get("min")
+                max_val = r.get("max")
+                
+                # Check if value falls within range
+                min_ok = min_val is None or (val is not None and val >= min_val)
+                max_ok = max_val is None or (val is not None and val <= max_val)
+                
+                if min_ok and max_ok:
+                    met = True
+                    points = r["points"]
+                    break
             
             entry = {
-                "credit_id": credit["id"],
+                "credit_id": credit["sub_id"],
                 "param": calc["param"],
                 "param_name": param_label,
                 "points": points,
@@ -362,6 +376,14 @@ def main():
     print(f"Eligible: {result['eligible']}")
     print(f"Total Green Score: {result['total_score']}")
     print(f"Certification Level: {result.get('certification_level', 'Not certified yet')}")
+    
+    print("\nCategory Scores:")
+    for category in standard["categories"]:
+        category_id = category["id"]
+        category_name = category["name"]
+        category_score = result.get('category_scores', {}).get(category_id, 0)
+        category_max = category["max_points"]
+        print(f" - {category_id} ({category_name}): {category_score}/{category_max} points")
 
     print("\nUnmet Criteria:")
     if unmet_criteria:
