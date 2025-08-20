@@ -42,7 +42,7 @@
       "max_points": 24,
       "credits": [
         {
-          "id": "SF1",
+          "sub_id": "SF1",
           "name": "Enhanced Waste Management",
           "max_points": 3,
           "calculation": {
@@ -80,7 +80,7 @@
           }
         },
         {
-          "id": "SF2",
+          "sub_id": "SF2",
           "name": "Sustainable Retrofitting",
           "max_points": 2,
           "calculation": {
@@ -125,7 +125,7 @@
           }
         },
         {
-          "id": "SF3",
+          "sub_id": "SF3",
           "name": "Urban Heat Island Mitigation",
           "max_points": 4,
           "calculation": {
@@ -175,7 +175,7 @@
           }
         },
         {
-          "id": "SF4",
+          "sub_id": "SF4",
           "name": "Eco-friendly Landscaping Practices",
           "max_points": 2,
           "calculation": {
@@ -200,7 +200,7 @@
           }
         },
         {
-          "id": "SF5",
+          "sub_id": "SF5",
           "name": "Eco-friendly Commuting Practices",
           "max_points": 2,
           "calculation": {
@@ -246,7 +246,7 @@
       "max_points": 20,
       "credits": [
         {
-          "id": "WC1",
+          "sub_id": "WC1",
           "name": "Enhanced Water Efficiency",
           "max_points": 3,
           "calculation": {
