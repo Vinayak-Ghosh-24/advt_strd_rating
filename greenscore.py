@@ -232,3 +232,163 @@ def calculate_green_score(data):
         return {"error": str(e)}
 
 
+
+
+# -------------------------
+# Name-based API extensions
+# -------------------------
+
+def _load_standard():
+    with open("advant_standard.json", "r") as f:
+        return json.load(f)
+
+
+def _iter_questions(standard):
+    """
+    Yields tuples of (category_id, credit_sub_id, question_dict) for every input in the standard,
+    including nested parts/options and additional requirements where applicable.
+    """
+    for category in standard.get("categories", []):
+        cat_id = category.get("id")
+        for credit in category.get("credits", []):
+            sub_id = credit.get("sub_id")
+            calc = credit.get("calculation", {})
+            ctype = calc.get("type")
+
+            if ctype == "conditional_sum":
+                for cond in calc.get("conditions", []):
+                    yield cat_id, sub_id, cond
+
+            elif ctype == "either_or":
+                for option in calc.get("options", []):
+                    for condition in option.get("conditions", []):
+                        yield cat_id, sub_id, condition
+
+            elif ctype == "range_based":
+                yield cat_id, sub_id, calc
+
+            elif ctype == "composite_sum":
+                for part in calc.get("parts", []):
+                    yield cat_id, sub_id, part
+
+            elif ctype == "single_condition":
+                yield cat_id, sub_id, calc.get("condition", {})
+                add_req = calc.get("additional_requirements")
+                if add_req:
+                    # Expose as a separate question to the agent
+                    yield cat_id, sub_id, add_req
+
+
+def _build_name_param_maps(standard):
+    """
+    Builds and returns two dicts:
+    - name_to_param: {name: param}
+    - name_to_input_type: {name: input_type}
+    """
+    name_to_param = {}
+    name_to_input_type = {}
+    for _, _, q in _iter_questions(standard):
+        name = q.get("name")
+        param = q.get("param")
+        if name and param:
+            name_to_param[name] = param
+            if q.get("input_type"):
+                name_to_input_type[name] = q.get("input_type")
+    return name_to_param, name_to_input_type
+
+
+def get_input_schema():
+    """Return a structured schema of inputs derived from advant_standard.json for an agent to ask.
+
+    Includes eligibility prompts and all credit inputs with labels, descriptions, prompts,
+    validation ranges/thresholds, units, and grouping metadata.
+    """
+    standard = _load_standard()
+
+    schema = {
+        "version": standard.get("version"),
+        "standard_name": standard.get("name"),
+        "eligibility": {
+            "building_type": {
+                "name": "building_type",
+                "label": "Building Type",
+                "description": "Type of the building",
+                "input_type": "enum",
+                "options": standard.get("eligibility_criteria", {}).get("building_type", []),
+                "required": True,
+            },
+            "operational_years": {
+                "name": "operational_years",
+                "label": "Operational years",
+                "description": "Number of years the building has been operational",
+                "input_type": "number",
+                "constraints": {
+                    "$gte": standard.get("eligibility_criteria", {}).get("operational_years", {}).get("$gte")
+                },
+                "required": True,
+            },
+        },
+        "questions": [],
+    }
+
+    for cat_id, sub_id, q in _iter_questions(standard):
+        question = {
+            "name": q.get("name"),
+            "label": q.get("label"),
+            "description": q.get("description"),
+            "prompt": q.get("prompt-description"),
+            "input_type": q.get("input_type", "number"),
+            "units": q.get("units"),
+            "category_id": cat_id,
+            "credit_sub_id": sub_id,
+        }
+
+        # Add validation hints
+        if "threshold" in q:
+            question["threshold"] = q.get("threshold")
+        if "ranges" in q:
+            question["ranges"] = q.get("ranges")
+        if "min_required" in q:
+            question["min_required"] = q.get("min_required")
+
+        schema["questions"].append(question)
+
+    return schema
+
+
+def evaluate_named(answers_by_name):
+    """
+    Evaluate using human-readable variable names from the JSON (e.g., 'dry_waste_reduction_percent').
+
+    - Skipped numeric inputs default to 0
+    - Skipped boolean inputs default to False
+    - Backwards-compatible defaults for eligibility if not provided: building_type="Commercial", operational_years=2
+    """
+    try:
+        standard = _load_standard()
+        calculator = GreenScoreCalculator(standard)
+
+        name_to_param, name_to_input_type = _build_name_param_maps(standard)
+
+        # Eligibility defaults (can be overridden by provided answers)
+        building_data = {
+            "building_type": answers_by_name.get("building_type", "Commercial"),
+            "operational_years": answers_by_name.get("operational_years", 2),
+        }
+
+        for name, param in name_to_param.items():
+            if name in answers_by_name:
+                building_data[param] = answers_by_name[name]
+            else:
+                itype = name_to_input_type.get(name, "number")
+                if itype == "boolean":
+                    building_data[param] = False
+                else:
+                    building_data[param] = 0
+
+        result = calculator.evaluate_enhanced(building_data)
+        if result.get("eligible", True):
+            result["credit_details"] = result.pop("credit_scores")
+        return result
+    except Exception as e:
+        return {"error": str(e)}
