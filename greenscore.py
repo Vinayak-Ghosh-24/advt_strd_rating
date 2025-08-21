@@ -1,5 +1,4 @@
 import json
-from typing import Dict, Any, Union
 
 class GreenScoreCalculator:
     def __init__(self, standard_json):
@@ -136,21 +135,6 @@ class GreenScoreCalculator:
                 return level["name"]
         return "No Certification"
 
-    def evaluate(self, building_data):
-        eligible, reason = self.check_eligibility(building_data)
-        if not eligible:
-            return {"eligible": False, "reason": reason}
-
-        total_score, category_scores, credit_scores = self.calculate_total_score(building_data)
-        level = self.get_certification_level(total_score)
-
-        return {
-            "eligible": True,
-            "total_score": total_score,
-            "category_scores": category_scores,
-            "credit_scores": credit_scores,
-            "certification_level": level
-        }
 
     def evaluate_enhanced(self, building_data):
         eligible, reason = self.check_eligibility(building_data)
@@ -162,7 +146,7 @@ class GreenScoreCalculator:
 
         return {
             "eligible": True,
-            "total_score": total_score,
+            "green_score": total_score,
             "category_scores": category_scores,
             "credit_scores": credit_scores,
             "certification_level": level
@@ -238,22 +222,11 @@ def calculate_green_score(data):
         # Use the enhanced evaluation method
         result = calculator.evaluate_enhanced(building_data)
         
-        # Check if building is eligible
-        if not result.get("eligible", True):
-            return {
-                "eligible": False,
-                "reason": result.get("reason", "Building not eligible"),
-                "total_score": 0,
-                "certification_level": "Not Eligible"
-            }
+        # Return result with renamed field for consistency
+        if result.get("eligible", True):
+            result["credit_details"] = result.pop("credit_scores")
         
-        return {
-            "eligible": True,
-            "total_score": result["total_score"],
-            "certification_level": result["certification_level"],
-            "category_scores": result["category_scores"],
-            "credit_details": result["credit_scores"]
-        }
+        return result
         
     except Exception as e:
         return {"error": str(e)}

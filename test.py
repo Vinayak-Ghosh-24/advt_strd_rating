@@ -4,7 +4,7 @@ import json
 data = {
     # compulsory to fill
     "building_type": "Institutional",  # Institutional or Commercial
-    "operational_years": 1,   # >= 1
+    "operational_years": 0.1,   # >= 1
 
     # optional to fill
     "dry_waste_reduction_percent": 25,
