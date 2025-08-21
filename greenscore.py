@@ -165,47 +165,11 @@ class GreenScoreCalculator:
             "total_score": total_score,
             "category_scores": category_scores,
             "credit_scores": credit_scores,
-            "certification_level": level,
-            "detailed_results": credit_scores
+            "certification_level": level
         }
 
 
 
-def build_name_to_param_map(standard: Union[str, dict]) -> dict:
-    """Build mapping from standard input names to paramX keys."""
-    if isinstance(standard, str):
-        standard = json.loads(standard)
-    
-    name_to_param = {}
-    
-    for category in standard["categories"]:
-        for credit in category["credits"]:
-            calc = credit["calculation"]
-            calc_type = calc["type"]
-            
-            if calc_type == "conditional_sum":
-                for condition in calc["conditions"]:
-                    name_to_param[condition["name"]] = condition["param"]
-            
-            elif calc_type == "either_or":
-                for option in calc["options"]:
-                    for condition in option.get("conditions", []):
-                        name_to_param[condition["name"]] = condition["param"]
-            
-            elif calc_type == "range_based":
-                name_to_param[calc["name"]] = calc["param"]
-            
-            elif calc_type == "composite_sum":
-                for part in calc["parts"]:
-                    name_to_param[part["name"]] = part["param"]
-            
-            elif calc_type == "single_condition":
-                name_to_param[calc["condition"]["name"]] = calc["condition"]["param"]
-                if "additional_requirements" in calc:
-                    ar = calc["additional_requirements"]
-                    name_to_param[ar["name"]] = ar["param"]
-    
-    return name_to_param
 
 
 def calculate_green_score(data):
@@ -295,14 +259,3 @@ def calculate_green_score(data):
         return {"error": str(e)}
 
 
-# Example usage
-if __name__ == "__main__":
-    # Test the simplified function
-    test_data = {
-        "dry_waste_reduction_percent": 25,
-        "wet_waste_composted_percent": 80,
-        "potable_water_savings_percent": 35
-    }
-    
-    result = calculate_green_score(test_data)
-    print(json.dumps(result, indent=2))
